@@ -1,11 +1,11 @@
 
 <p align="center">
-  <img src="https://github.com/intel-innersource/frameworks.ai.infrastructure.kubeflow-intel-gcp-distributed-training-cv/blob/main/images/logo-classicblue-800px.png?raw=true" alt="Intel Logo" width="250"/>
+  <img src="./images/logo-classicblue-800px.png?raw=true" alt="Intel Logo" width="250"/>
 </p>
 
-# Intel® Cloud Optimization Modules for GCP: XGBoost on Kubeflow
+# Intel® Cloud Optimization Modules for GCP: XGBoost Kubeflow Pipeline
 
-This reference solution provides an optimized training and inference architecture of an AI model using XGBoost to predict the probability of a loan default from client characteristics and the type of loan obligation on GCP. This module enables the use of Intel® optimizations for XGBoost and Intel® daal4py in a Kubeflow Pipeline. This guide will walk you through the set up of Kubeflow on GCP, followed by running an Kubeflow pipeline. Note that you can bring and build your own Kubeflow pipelines and that this is just an example to get you started! During the setup of the Kubeflow cluster, we recommend deploying with the latest [C3 CPU available on GCP](https://cloud.google.com/compute/docs/general-purpose-machines#c3_series), which is the 4th Generation Intel Xeon Scalable Processor (code-named Sapphire Rapids) for built-in AI accelerations like [Intel AMX](https://www.intel.com/content/www/us/en/products/docs/accelerator-engines/advanced-matrix-extensions/overview.html).
+This reference solution provides an optimized training and inference architecture of an AI model using XGBoost to predict the probability of a loan default from client characteristics and the type of loan obligation on GCP. This module enables the use of Intel® optimizations for XGBoost and Intel® daal4py in a Kubeflow Pipeline. This guide will walk you through the set up of Kubeflow on GCP, followed by running an Kubeflow pipeline. Note that you can bring and build your own Kubeflow pipelines and that this is just an example to get you started! During the setup of the Kubeflow cluster, we recommend deploying with the latest [C3 CPU available on GCP](https://cloud.google.com/compute/docs/general-purpose-machines#c3_series), which is the 4th Generation Intel Xeon Scalable Processor (code-named Sapphire Rapids) with built-in AI acceleration [Intel AMX](https://www.intel.com/content/www/us/en/products/docs/accelerator-engines/advanced-matrix-extensions/overview.html).
 
 ## Table of Contents
 
@@ -18,7 +18,7 @@ This reference solution provides an optimized training and inference architectur
 7. [Cleaning Up Kubeflow Resources](#7-cleaning-up-kubeflow-resources)
 8. [Next Steps](#8-next-steps)
 
-> **Note**: This guide corresponds to Kubeflow version 1.7.1. The latest GCP Kubeflow can be found [here on GitHub](https://github.com/GoogleCloudPlatform/kubeflow-distribution). 
+> **Note**: This guide corresponds to Kubeflow version 1.8.0. The latest GCP Kubeflow can be found [here on GitHub](https://github.com/GoogleCloudPlatform/kubeflow-distribution). 
 
 > **Prerequisites**: It is assumed that you have already created a GCP project and have opened up a Cloud Shell. I've outlined these steps in the [main folder here](../).
 
@@ -46,6 +46,12 @@ gcloud services enable \
 
 Anthos Service Mesh is a suite of tools that the official GCP documentation recommends for managing GCP services and environments to make deploying your app easier. In order to use it, you first need to set up its configuration within your GCP project.
 If you have not previously ever created a cluster on your GCP project, you will need to temporarily create a cluster and then delete it, before installing Anthos Service Mesh. To do this, you can run the following to create a cluster called "tmp-cluster". This may take a few minutes.
+
+```
+PROJECT_ID=<YOUR_PROJECT_ID>
+```
+
+where `PROJECT_ID` is your GCP Project ID which can be found in the console under [Cloud Overview](https://console.cloud.google.com/home/dashboard).
 
 ```bash
 gcloud beta container clusters create tmp-cluster \
@@ -79,8 +85,6 @@ curl --request POST \
   --data '' \
   https://meshconfig.googleapis.com/v1alpha1/projects/${PROJECT_ID}:initialize
 ```
-
-where `${PROJECT_ID}` is your GCP Project ID which can be found in the console under [Cloud Overview](https://console.cloud.google.com/home/dashboard).
 
 Upon a successful run, you should just get an output of
 
@@ -136,11 +140,11 @@ sudo apt-get install kubectl google-cloud-sdk-kpt google-cloud-sdk
 ```
 
 ### Clone Kubeflow GCP Distribution from GitHub
-You need the Kubeflow GCP distribution from GitHub, which at the time of writing is v1.7.1. We can go ahead and clone it and check out the v1.7.1 tag with:
+You need the Kubeflow GCP distribution from GitHub, which at the time of writing is v1.8.0. We can go ahead and clone it and check out master branch:
 ```bash
 git clone https://github.com/googlecloudplatform/kubeflow-distribution.git 
 cd kubeflow-distribution
-git checkout tags/v1.7.1 -b v1.7.1
+git checkout master
 ```
 
 Navigate to the Kubeflow management folder. For instance, mine is found here:
@@ -151,7 +155,7 @@ cd ~/kubeflow-distribution/management
 ### Save Kubeflow management environment variables
 Open env.sh and modify the environment variables. Here is an example of my file:
 ```bash
-export MGMT_PROJECT=bconsolvo
+export MGMT_PROJECT=aice-12118968
 export MGMT_NAME=kubeflow-mgt
 export LOCATION=us-central1
 ```
@@ -296,7 +300,7 @@ If we click on one of these VM instances, you should see that each is a [e2-stan
 
 ## 4. Deploying Kubeflow Cluster
 
-After deploying the Kubeflow management cluster, the next step is to deploy the Kubeflow cluster itself. At this point in the workflow, you should already have: set up and installed Anthos, set up your OAuth credentials, saved `$MGMT_PROJECT`, `$MGMT_NAME`, and `$LOCATION` environment variables and ran `bash kpt-set.sh` in the `~/kubeflow-distribution/management` folder, created the Kubeflow management cluster, and granted Anthos Config Controller service account the permissions to modify GCP resources.
+After deploying the Kubeflow management cluster, the next step is to deploy the Kubeflow cluster itself. At this point in the workflow, you should already have: set up and installed Anthos, set up your OAuth credentials, saved `$MGMT_PROJECT`, `$MGMT_NAME`, and `$LOCATION` environment variables and run `bash kpt-set.sh` in the `~/kubeflow-distribution/management` folder, created the Kubeflow management cluster, and granted Anthos Config Controller service account the permissions to modify GCP resources.
 
 Now, you need to navigate to the `kubeflow` folder and pull manifests from the `kubeflow/manifests` repository:
 
@@ -306,26 +310,20 @@ bash ./pull-upstream.sh
 ```
 The beginning and end of the output should look something like:
 ```bash
-+ export KUBEFLOW_MANIFESTS_VERSION=v1.7.0
-+ KUBEFLOW_MANIFESTS_VERSION=v1.7.0
++ export KUBEFLOW_MANIFESTS_VERSION=v1.8.0
++ KUBEFLOW_MANIFESTS_VERSION=v1.8.0
 + export KUBEFLOW_MANIFESTS_REPO=https://github.com/kubeflow/manifests.git
 + KUBEFLOW_MANIFESTS_REPO=https://github.com/kubeflow/manifests.git
-+ export KUBEFLOW_PIPELINES_VERSION=2.0.0-alpha.7
-+ KUBEFLOW_PIPELINES_VERSION=2.0.0-alpha.7
-+ export KUBEFLOW_PIPELINES_REPO=https://github.com/kubeflow/pipelines.git
-+ KUBEFLOW_PIPELINES_REPO=https://github.com/kubeflow/pipelines.git
++ export KUBEFLOW_PIPELINES_VERSION=2.0.3
++ KUBEFLOW_PIPELINES_VERSION=2.0.3
 
 ...
 
-Fetched 1 package(s).
-+ rm contrib/kserve/models-web-app/upstream/Kptfile
-+ '[' -d contrib/kserve/kserve/upstream ']'
-+ mkdir -p contrib/kserve/kserve
-+ kpt pkg get https://github.com/kubeflow/manifests.git/contrib/kserve/kserve/@v1.7.1 contrib/kserve/kserve/upstream/
++ kpt pkg get https://github.com/kubeflow/manifests.git/contrib/kserve/kserve/@v1.8.0 contrib/kserve/kserve/upstream/
 Package "upstream":
-Fetching https://github.com/kubeflow/manifests@v1.7.0
+Fetching https://github.com/kubeflow/manifests@v1.8.0
 From https://github.com/kubeflow/manifests
- * tag               v1.7.0     -> FETCH_HEAD
+ * tag               v1.8.0     -> FETCH_HEAD
 Adding package "contrib/kserve/kserve".
 
 Fetched 1 package(s).
@@ -355,8 +353,6 @@ The beginning and end of the output should look like:
 ```bash
 + [[ -z kubeflow ]]
 + [[ -z kubeflow-mgt ]]
-+ [[ -z bconsolvo ]]
-
 ...
 
 katib-metricscollector-injection: 'enabled'
@@ -385,25 +381,25 @@ apply-kcc: validate-kcc-values
 
 The output should look similar to:
 ```bash
-kubectl create namespace bconsolvo --dry-run=client -o yaml | kubectl --context=kubeflow-mgt apply -f -
-namespace/bconsolvo created
+kubectl create namespace aice-12118968 --dry-run=client -o yaml | kubectl --context=kubeflow-mgt apply -f -
+namespace/aice-12118968 configured
 ./kcc/kpt-set.sh
 [RUNNING] "gcr.io/kpt-fn/apply-setters:v0.1"
-[PASS] "gcr.io/kpt-fn/apply-setters:v0.1" in 300ms
+[PASS] "gcr.io/kpt-fn/apply-setters:v0.1" in 400ms
   Results:
-    [info] metadata.name: set field value to "cnrm-network-viewer-bconsolvo"
+    [info] metadata.name: set field value to "cnrm-network-viewer-aice-12118968"
     [info] metadata.namespace: set field value to "config-control"
-    [info] subjects[0].name: set field value to "cnrm-controller-manager-bconsolvo"
-    [info] metadata.name: set field value to "cnrm-project-viewer-bconsolvo"
+    [info] subjects[0].name: set field value to "cnrm-controller-manager-aice-12118968"
+    [info] metadata.name: set field value to "cnrm-project-viewer-aice-12118968"
     ...(19 line(s) truncated, use '--truncate-output=false' to disable)
 kubectl --context=kubeflow-mgt apply -f ./kcc/kcc-namespace
-rolebinding.rbac.authorization.k8s.io/cnrm-network-viewer-bconsolvo created
-rolebinding.rbac.authorization.k8s.io/cnrm-project-viewer-bconsolvo created
-iampartialpolicy.iam.cnrm.cloud.google.com/kcc-bconsolvo-owners-permissions created
-configconnectorcontext.core.cnrm.cloud.google.com/configconnectorcontext.core.cnrm.cloud.google.com created
-iamserviceaccount.iam.cnrm.cloud.google.com/kcc-bconsolvo created
-iampartialpolicy.iam.cnrm.cloud.google.com/bconsolvo-sa-workload-identity-binding created
-namespace/bconsolvo configured
+rolebinding.rbac.authorization.k8s.io/cnrm-network-viewer-aice-12118968 unchanged
+rolebinding.rbac.authorization.k8s.io/cnrm-project-viewer-aice-12118968 unchanged
+iampartialpolicy.iam.cnrm.cloud.google.com/kcc-aice-12118968-owners-permissions unchanged
+configconnectorcontext.core.cnrm.cloud.google.com/configconnectorcontext.core.cnrm.cloud.google.com unchanged
+iamserviceaccount.iam.cnrm.cloud.google.com/kcc-aice-12118968 unchanged
+iampartialpolicy.iam.cnrm.cloud.google.com/aice-12118968-sa-workload-identity-binding unchanged
+namespace/aice-12118968 configured
 ```
 
 ### Correcting YAML files before deploying Kubeflow cluster
@@ -420,7 +416,7 @@ However, the GCP Kubeflow GitHub has merged my pull requests now, and these shou
 1. [Remove clusterName from nodepool.yaml](https://github.com/GoogleCloudPlatform/kubeflow-distribution/pull/427/commits/876b57537de3927d28d35a4edda587a04176b0f3)
 2. [Remove metadata.ClusterName entirely from cluster.yaml](https://github.com/GoogleCloudPlatform/kubeflow-distribution/pull/426/commits/42c1597b0e809a13057df83b6a4a8f042c382521)
 
-There is still one more YAML file that needs to have a line removed to avoid one more error. The file can be found here:
+There is still one more YAML file that may need to have a line removed to avoid one more error. The file can be found here:
 ```bash
 ~/kubeflow-distribution/kubeflow/apps/profiles/upstream/crd/bases/kubeflow.org_profiles.yaml
 ```
@@ -430,14 +426,14 @@ The line that needs to be removed is:
 creationTimestamp: null
 ```
 
-If this is not removed, you will receive an error like the following:
+If this is not removed, you may receive an error like the following:
 ```bash
 ...
 error: unable to decode "apps/profiles/build/apiextensions.k8s.io_v1_customresourcedefinition_profiles.kubeflow.org.yaml": parsing time "null" as "2006-01-02T15:04:05Z07:00": cannot parse "null" as "2006"
 make: *** [Makefile:83: apply] Error 1
 ```
 
-The issue was raised on GitHub [here](https://github.com/kubeflow/kubeflow/issues/7041#issuecomment-1493434289).
+The issue was raised on GitHub [here](https://github.com/kubeflow/kubeflow/issues/7041#issuecomment-1493434289) if you want to follow it more closely.
 
 ### Deploying the Kubeflow Cluster on C3 Machine Shape
 
@@ -566,6 +562,35 @@ I now can visit https://kubeflow.endpoints.bconsolvo.cloud.goog in my web browse
 
 ## 6. Running the XGBoost Kubeflow Pipeline
 
+### Add labels to your pods
+
+First, let's check the names of our pods in our Kubeflow cluster:
+```bash
+kubectl get nodes --show-labels
+```
+
+The output should look like:
+```bash
+NAME                                                  STATUS   ROLES    AGE   VERSION           LABELS
+gke-kubeflow-default-pool-5b8bfadc-0ddz               Ready    <none>   18h   v1.27.3-gke.100   beta.kubernetes.io/arch=amd64,beta.kubernetes.io/instance-type=c3-highcpu-4,beta.kubernetes.io/os=linux,cloud.google.com/gke-boot-disk=pd-balanced,cloud.google.com/gke-container-runtime=containerd,cloud.google.com/gke-cpu-scaling-level=4,cloud.google.com/gke-logging-variant=DEFAULT,cloud.google.com/gke-max-pods-per-node=110,cloud.google.com/gke-netd-ready=true,cloud.google.com/gke-nodepool=default-pool,cloud.google.com/gke-os-distribution=cos,cloud.google.com/gke-provisioning=standard,cloud.google.com/gke-stack-type=IPV4,cloud.google.com/machine-family=c3,cloud.google.com/private-node=false,failure-domain.beta.kubernetes.io/region=us-central1,failure-domain.beta.kubernetes.io/zone=us-central1-c,iam.gke.io/gke-metadata-server-enabled=true,kubernetes.io/arch=amd64,kubernetes.io/hostname=gke-kubeflow-default-pool-5b8bfadc-0ddz,kubernetes.io/os=linux,node.kubernetes.io/instance-type=c3-highcpu-4,topology.gke.io/zone=us-central1-c,topology.kubernetes.io/region=us-central1,topology.kubernetes.io/zone=us-central1-c
+
+...
+```
+
+We need to label our pipeline Python file [pipelines/intel_xgboost_daal4py_pipeline_gcp.py](pipelines/intel_xgboost_daal4py_pipeline_gcp.py) with a key-value pair to select the specific nodes we want to target. In my case, I will use a key-value pair I found in the output above in the comma separated list, and add it to around lines 488-489.
+
+```python
+    node_label_key = 'beta.kubernetes.io/instance-type'
+    node_label_value = 'c3-highcpu-4'
+```
+
+Just a note on the code in the Python pipeline file: after each pipeline method, we put a `kubernetes.add_node_selector` line to target the appropriate node:
+
+```python
+    kubernetes.add_node_selector(task=load_data_op, label_key=node_label_key, label_value=node_label_value)
+```
+
+
 ### Create the Pipeline .YAML file
 
 To generate the .YAML pipeline file, you can git clone this repository with:
@@ -575,32 +600,32 @@ git clone https://github.com/intel/intel-cloud-optimizations-gcp.git
 cd kubeflow/pipelines
 ```
 
-Install the Python package `kfp` in order to generate the pipeline from [pipelines/intel-xgboost-daal4py-pipeline.py](pipelines/intel-xgboost-daal4py-pipeline.py):
+Install the `kfp` and `kfp-kubernetes` packages in order to generate the pipeline from [pipelines/intel_xgboost_daal4py_pipeline_gcp.py](pipelines/intel_xgboost_daal4py_pipeline_gcp.py):
 ```bash
-pip install kfp==2.0.1
+pip install kfp
+pip install kfp-kubernetes
 ```
 
-And then you can generate the `intel-xgboost-daal4py-pipeline.yaml` file with:
+And then you can generate the `YAML` pipeline file with:
 ```bash
-python3 intel-xgboost-daal4py-pipeline.py
+python3 pipelines/intel_xgboost_daal4py_pipeline_gcp.py
 ```
 
 ### Log into the Kubeflow UI
 
-You should be able to log into your Kubeflow UI on your web browser with the URL we generated in the previous step. The URL should look similar to https://kubeflow.endpoints.bconsolvo.cloud.goog. 
+You should be able to log into your Kubeflow UI on your web browser with the URL we generated in the previous step. The URL should look similar to https://kubeflow.endpoints.aice.cloud.goog. The UI should appear like:
+
+![image](./images/kubeflow_ui.png)
 
 ### Upload and Run the Pipeline
 
-1.  Once you have logged into Kubeflow, click on the Pipelines tab from the sidebar 
+1.  Once you have logged into Kubeflow, first click on the Pipelines tab from the sidebar 
     menu.
 2.  Click on the Upload Pipeline button in the top right and type in a new name and 
     description for the Pipeline.
-3.  Select Upload a file and navigate to the directory where the 
-    `intel-xgboost-daal4py-pipeline.yaml` is located. Click Create.
-4.  You should be redirected to a graph overview of the pipeline. In the top right,
-    select Create run.
-5.  In the Run parameters section at the bottom, you can review and update the default 
-    values of the pipeline parameters.
+3.  Select Upload a file and navigate to the directory where your `<pipeline>.yaml` file is located. Click Create. You should be redirected to a graph overview of the pipeline. 
+4.  Now, create a new Experiment in the top right and use the pipeline that you have just uploaded.
+5.  In the Run parameters section, you can review and update the default values of the pipeline parameters. Enter the data size and data url. The dataset can be downloaded from Kaggle [here](https://www.kaggle.com/datasets/laotse/credit-risk-dataset) and hosted on a public URL of your choice.
 6.  Click Start to begin running the pipeline.  
 7.  When the Pipeline is finished running, check out the **Visualizations** tab for 
     the `Daal4py Inference` and `Plot ROC Curve` steps to view the model metrics.
@@ -608,8 +633,7 @@ You should be able to log into your Kubeflow UI on your web browser with the URL
 [Back to Table of Contents](#table-of-contents)
 ## 7. Cleaning Up Kubeflow Resources
 
-In order to clean up Kubeflow resources, we need to first delete the Kubeflow cluster, and then the Kubeflow management cluster. Starting with the Kubeflow cluster, you first need to delete the applications running in the Kubeflow namespace with:
-
+In order to clean up Kubeflow resources, we need to first delete the Kubeflow cluster, and then the Kubeflow management cluster. Starting with the Kubeflow cluster, you first need to delete the applications running in the Kubeflow namespace:
 ```bash
 kubectl delete namespace kubeflow
 ```
@@ -642,16 +666,27 @@ service.serviceusage.cnrm.cloud.google.com "monitoring.googleapis.com" deleted
 service.serviceusage.cnrm.cloud.google.com "servicemanagement.googleapis.com" deleted
 ```
 
-In order to clean up the management cluster, you can run:
+You will also want to navigate to the SQL dashboard on the Google Cloud Console and delete your SQL database:
+
+![image](./images/gcp_sql_database.png)
+
+And navigate to the Cloud Storage dashboard and delete the GCP bucket:
+
+![image](./images/gcp_cloud_storage_bucket.png)
+
+In order to clean up the management cluster, navigate to
+```bash
+~/kubeflow-distribution/management/
+```
+
+you can make sure that the environment variables `$MGMTCTXT` and `$KF_PROJECT` are set. If they are not set, you should be able to `source env.sh`
+ in the current folder.
 ```bash
 kubectl config use-context "${MGMTCTXT}"
 kubectl delete namespace --wait "${KF_PROJECT}"
 ```
 
-and then after navigating to
-```bash
-cd ~/kubeflow-distribution/management/
-```
+Now, delete the Kubeflow management cluster with:
 
 run
 ```bash
@@ -661,6 +696,7 @@ make delete-cluster
 This may take 5–10 minutes to complete. Both your Kubeflow cluster and your Kubeflow management cluster should now be deleted, and you should not continue to receive bills for these instances.
 
 Thank you for reading!
+
 [Back to Table of Contents](#table-of-contents)
 
 ## 8. Next Steps

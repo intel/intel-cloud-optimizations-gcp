@@ -1,7 +1,8 @@
 import kfp
 from kfp import dsl
 from kfp import compiler
-from kfp.v2.dsl import (component, Input, Output, Dataset, Model,
+from kfp import kubernetes
+from kfp.dsl import (component, Input, Output, Dataset, Model,
                         Metrics, ClassificationMetrics)
 
 @component(
@@ -477,33 +478,48 @@ def plot_roc_curve(
 )
 def intel_xgboost_daal4py_pipeline(
     data_url: str,
-    data_size: int = 1000000,
+    data_size: int = 1000000
+    # node_label_key: str = 'beta.kubernetes.io/instance-type',
+    # node_label_value: str = 'c3-highcpu-4'
 ):
     
     """ Loan Default Prediction Pipeline """
+    
+    node_label_key = 'beta.kubernetes.io/instance-type'
+    node_label_value = 'c3-highcpu-4'
     
     load_data_op = load_data(
         data_url = data_url,
         data_size = data_size
     ).set_display_name('Load data')
     
+    kubernetes.add_node_selector(task=load_data_op, label_key=node_label_key, label_value=node_label_value)
+    
     create_train_test_set_op = create_train_test_set(
         data = load_data_op.outputs['credit_risk_dataset']
     ).set_display_name('Create training and test sets')
+    
+    kubernetes.add_node_selector(task=create_train_test_set_op, label_key=node_label_key, label_value=node_label_value)
     
     preprocess_features_op = preprocess_features(
         x_train = create_train_test_set_op.outputs['x_train_data'],
         x_test = create_train_test_set_op.outputs['x_test_data']
     ).set_display_name('Preprocess features')
     
+    kubernetes.add_node_selector(task=preprocess_features_op, label_key=node_label_key, label_value=node_label_value)
+    
     train_xgboost_model_op = train_xgboost_model(
         x_train = preprocess_features_op.outputs['x_train_processed'],
         y_train = create_train_test_set_op.outputs['y_train_data']
     ).set_display_name('Train XGBoost model')
     
+    kubernetes.add_node_selector(task=train_xgboost_model_op, label_key=node_label_key, label_value=node_label_value)
+    
     convert_xgboost_to_daal4py_op = convert_xgboost_to_daal4py(
         xgb_model = train_xgboost_model_op.outputs['xgb_model']
     ).set_display_name('Convert XGBoost model to Daal4py')
+    
+    kubernetes.add_node_selector(task=convert_xgboost_to_daal4py_op, label_key=node_label_key, label_value=node_label_value)
     
     daal4py_inference_op = daal4py_inference(
         x_test = preprocess_features_op.outputs['x_test_processed'],
@@ -511,12 +527,15 @@ def intel_xgboost_daal4py_pipeline(
         daal4py_model = convert_xgboost_to_daal4py_op.outputs['daal4py_model']   
     ).set_display_name('Daal4py Inference')
     
+    kubernetes.add_node_selector(task=daal4py_inference_op, label_key=node_label_key, label_value=node_label_value)
+    
     plot_roc_curve_op = plot_roc_curve(
         predictions = daal4py_inference_op.outputs['prediction_data']
     ).set_display_name('Plot ROC Curve')
     
+    kubernetes.add_node_selector(task=plot_roc_curve_op, label_key=node_label_key, label_value=node_label_value)
+    
 if __name__ == "__main__":    
-    compiler.Compiler(
-        mode = kfp.dsl.PipelineExecutionMode.V2_COMPATIBLE).compile(
+    compiler.Compiler().compile(
         pipeline_func = intel_xgboost_daal4py_pipeline,
         package_path = 'intel-xgboost-daal4py-pipeline.yaml')

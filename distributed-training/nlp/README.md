@@ -1,26 +1,48 @@
 
 <p align="center">
-  <img src="https://github.com/intel-innersource/frameworks.ai.infrastructure.kubeflow-intel-gcp-distributed-training-cv/blob/main/images/logo-classicblue-800px.png?raw=true" alt="Intel Logo" width="250"/>
+  <img src="./images/logo-classicblue-800px.png?raw=true" alt="Intel Logo" width="250"/>
 </p>
 
-# Intel® Cloud Optimization Modules for GCP: GPT2-Small Distributed Training
+# Intel® Cloud Optimization Modules for GCP: nanoGPT Distributed Training
 
-The Intel Cloud Optimization Modules (ICOMs) for GCP are open-source codebases with codified Intel AI software optimizations and instructions built specifically for GCP.  The ICOMs are built with production AI developers in mind, leveraging popular AI frameworks within the context of cloud services.
-
-LLMs (Large Language Models) are becoming ubiquitous, but in many cases, you don't need the full capability of the latest GPT model. Additionally, when you have a specific task at hand, the performance of the biggest GPT model might not be optimal. Often, fine-tuning a small LLM on your dataset is sufficient. In this guide, you will learn how to fine-tune a [GPT2-small](https://huggingface.co/gpt2) (124M parameter) model on a cluster of CPUs on GCP. The objective here is not to arrive at a chatGPT-like AI model, but rather to understand how to set up distributed training so that you can fine-tune to your specific objective. The end result of training here will result in a base LLM that can generate words (or tokens), but it will only be suitable for your use-case when you train it on your specific task and dataset.
-
-The GPT2-small model will be trained on the [OpenWebText](https://huggingface.co/datasets/Skylion007/openwebtext) dataset in a distributed setting, using 3rd or 4th Gen. Intel® Xeon® Scalable Processors. The project builds upon the initial codebase of [nanoGPT](https://github.com/karpathy/nanoGPT), by Andrej Karpathy.
+The Intel Cloud Optimization Modules for Google Cloud Platform (GCP) are a set of open source cloud-native reference architectures to facilitate building and deploying optimized, efficient, and scalable AI solutions on GCP. Here is the reference architecture for this module:
+<p align="center">
+  <img src="./images/nanoGPT_architecture_diagram_gcp.png" alt="Intel Logo" width="600"/>
+</p>
 
 
 ## Table of Contents
-- [I. Spinning up an instance with Google Compute Engine]
-- [II. OAuth Consent Screen and Credentials]
+- [I. Introduction](#i-introduction)
+- [II. Spinning up an instance with Google Compute Engine](#ii-spinning-up-an-instance-with-google-compute-engine)
+- [III. Environment Setup](#iii-environment-setup)
+- [IV. Download dataset and Fine-tune nanoGPT on a Single CPU](#iv-download-dataset-and-fine-tune-nanogpt-on-a-single-cpu)
+- [V. Prepare for Distributed Fine-Tuning](#v-prepare-for-distributed-fine-tuning)
+- [VI. Distributed Training](#vi-distributed-training)
+- [VII. Model Inference](#vii-model-inference)
+- [VIII. Clean Up Resources](#viii-clean-up-resources)
+- [IX. Summary](#ix-summary)
+- [X. Next Steps](#x-next-steps)
 
-## I. Spinning up an instance with Google Compute Engine
+## I. Introduction
+LLMs (Large Language Models) are becoming ubiquitous, but in many cases, you don't need the full capability of the latest GPT model. Additionally, when you have a specific task at hand, the performance of the biggest GPT model might not be optimal. Often, fine-tuning a small LLM on your dataset is sufficient. 
 
-In order to get the full benefit of the best deep learning training on a CPU as possible, you can spin up 4th Gen Intel® Xeon Scalable Processors, which includes the [Intel® Advanced Matrix Extensions (AMX)](https://www.intel.com/content/www/us/en/products/docs/accelerator-engines/advanced-matrix-extensions/overview.html). On GCP, the 4th Gen Xeon CPU is labeled as "C3" ([see GCP C3 specifications here](https://cloud.google.com/compute/docs/general-purpose-machines#c3_machine_types)). During the distributed training portion, you can spin up 3x "c3-highmem-8" virtual machines, which each have 8 vCPUs (4 physical cores), and 64 GB of memory. 
+In this guide, you will learn how to fine-tune [nanoGPT](https://huggingface.co/gpt2) (124M parameter) model on a cluster of CPUs on GCP. The model is trained on [OpenWebText](https://huggingface.co/datasets/Skylion007/openwebtext) dataset in a distributed setting, using 4th Gen. Intel® Xeon® Scalable CPUs. The project builds upon the initial codebase of [nanoGPT](https://github.com/karpathy/nanoGPT), by Andrej Karpathy. The objective here is not to arrive at a chatGPT-like AI model, but rather to understand how to set up distributed training so that you can fine-tune to your specific objective. The end result of training here will result in a base LLM that can generate words, or tokens, but it will only be suitable for your use-case when you fine-tune it on your specific task and dataset.
 
-You can spin up the initial instance from the Google Cloud Console, under "Compute Engine" by selecting the appropriate options, or you can spin up the instance in the Google Cloud Shell with a `gcloud` command. The options I selected in my case are shown in the screenshots here, and the equivalent code is below.
+This module demonstrates how to transform a standard single-node PyTorch training scenario into a high-performance distributed training scenario across multiple CPUs. To fully capitalize on Intel hardware and further optimize the fine-tuning process, this module integrates the [Intel® Extension for PyTorch*](https://intel.github.io/intel-extension-for-pytorch/) and [Intel® oneAPI Collective Communications Library (oneCCL)](https://www.intel.com/content/www/us/en/developer/tools/oneapi/oneccl.html). The module serves as a guide to setting up a GCP cluster for distributed training workloads while showcasing a project for fine-tuning LLMs.
+
+[Back to Table of Contents](#table-of-contents)
+## II. Spinning up an instance with Google Compute Engine
+
+In order to get the full benefit of the best deep learning training on a CPU as possible, you can spin up 4th Gen Intel® Xeon Scalable Processors, which includes the [Intel® Advanced Matrix Extensions (AMX)](https://www.intel.com/content/www/us/en/products/docs/accelerator-engines/advanced-matrix-extensions/overview.html). On GCP, the 4th Gen Xeon is labeled as "C3" ([see GCP C3 specifications here](https://cloud.google.com/compute/docs/general-purpose-machines#c3_machine_types)). During the distributed training portion, you can spin up 3x "c3-highmem-8" virtual machines, which each have 8 vCPUs (4 physical cores), and 64 GB of memory. There are a couple of options to spin up virtual machines:
+
+A. Spin up using Terraform scripts. [See Intel's reference solution here.](https://github.com/intel/terraform-intel-gcp-vm/tree/main/examples/gcp-linux-vm)
+
+<details open>
+  <summary>
+   B. Spin up your nodes with the Google Cloud Console. I detail this in the collapsed section here.
+  </summary>
+</n>
+You can spin up the initial instance from the Google Cloud Console, under "Compute Engine" by selecting the appropriate options, and get the equivalent commands for the Google Cloud Shell with an equivalent `gcloud` command. The options I selected in my case are shown in the screenshots here. 
 
 ![image](./images/c3_machine_shape_1of2.png)
 
@@ -28,7 +50,7 @@ And under the Boot disk option, select "Change" and the following operating syst
 
 ![image](./images/c3_machine_shape_2of2.png)
 
-Here is the equivalent code for my setup. **Please note that you can't just copy paste this without modification, as it has my specific instance name, project, zone, and service account tied to it.** You can obtain the equivalent code by selecting the options in the screenshots above and then clicking on "Equivalent code" in the top right corner of the Google Console, or replacing the options you need to select with 
+Here is the equivalent code for my setup. **Please note that you can't just copy paste this without modification, as it has my specific instance name, project, zone, and service account tied to it.** You can obtain the equivalent code by selecting the options in the screenshots above and then clicking on "Equivalent code" in the top right corner of the Google Console, or replacing the options manually.
 
 ```bash
 gcloud compute instances create instance-2 \
@@ -49,93 +71,190 @@ Sapphire\ Rapids \
     --labels=goog-ec-src=vm_add-gcloud \
     --reservation-affinity=any
 ```
+</details>
 
-### Environment Setup
 
+[Back to Table of Contents](#table-of-contents)
+## III. Environment Setup
 
-Steps:
+Open up a terminal window on your GCP Virtual Machine to set up the environment for fine-tuning the nanoGPT model.
+
+We will first update the package manager and install [tcmalloc](https://github.com/google/tcmalloc) for extra performance.
+
 ```bash
 sudo apt update
 sudo apt install libgoogle-perftools-dev -y
-
-sudo apt-get install python3-pip -y
-pip install pip --upgrade
-export PATH=/home/ubuntu/.local/bin:$PATH
-
-sudo pip install virtualenv
-virtualenv cluster_env
-source cluster_env/bin/activate
 ```
+Now let's set up a conda environment for fine-tuning GPT. First, download and install conda based on your operating system. You can find the most updated download instructions [here](https://www.anaconda.com/download#downloads). The commands should look like:
 
 ```bash
-pip install torch==1.13.0+cpu --extra-index-url https://download.pytorch.org/whl/cpu
-python -m pip install intel_extension_for_pytorch==1.13.0
-pip3 install oneccl_bind_pt==1.13.0+cpu -f https://developer.intel.com/ipex-whl-stable-cpu
-
+wget https://repo.anaconda.com/miniconda/Miniconda3-py310_23.10.0-1-Linux-x86_64.sh
+bash ./Miniconda3-py310_23.10.0-1-Linux-x86_64.sh
 ```
+Make sure to answer `yes` to the question 
+```bash
+Do you wish to update your shell profile to automatically initialize conda?
+This will activate conda on startup and change the command prompt when activated.
+If you'd prefer that conda's base environment not be activated on startup,
+   run the following command when conda is activated:
+
+conda config --set auto_activate_base false
+
+You can undo this by running `conda init --reverse $SHELL`? [yes|no]
+[no] >>> yes
+```
+
+
+To begin using conda, you have two options: restart the shell or execute the following command:
+```bash
+source ~/.bashrc
+```
+
+Running this command will source the `bashrc` file, which has the same effect as restarting the shell. This enables you to access and use conda for managing your Python environments and packages seamlessly.
+
+Once conda is installed, create a virtual environment and activate it:
 
 ```bash
-git clone https://github.com/intel/intel-optimizations-aws/
-cd distributed-training/nlp/
-pip3 install -r requirements.txt
+conda create -n cluster_env python=3.10
+conda activate cluster_env
 ```
+Now we can install the Python packages in our new conda environment.
 
-Install accelerate
 ```bash
-pip install accelerate
-pip install omegaconf
-pip install hydra-core --upgrade
+git clone https://github.com/intel/intel-cloud-optimizations-gcp
+cd intel-cloud-optimizations-gcp/distributed-training/nlp
+pip install -r requirements.txt
 ```
 
+In order to run distributed training, we will use the [Intel® oneAPI Collective Communications Library (oneCCL)](https://www.intel.com/content/www/us/en/developer/tools/oneapi/oneccl.html). Download the appropriate wheel file and install it using the following commands:
 
+```bash
+wget https://intel-extension-for-pytorch.s3.amazonaws.com/torch_ccl/cpu/oneccl_bind_pt-1.13.0%2Bcpu-cp310-cp310-linux_x86_64.whl
+pip install oneccl_bind_pt-1.13.0+cpu-cp310-cp310-linux_x86_64.whl
 ```
+
+And you can delete the wheel file after installation:
+```bash
+rm oneccl_bind_pt-1.13.0+cpu-cp310-cp310-linux_x86_64.whl
+```
+
+[Back to Table of Contents](#table-of-contents)
+## IV. Download dataset and Fine-tune nanoGPT on a Single CPU
+
+Next, we can download the full OpenWebText dataset. This is all accomplished with one script.
+
+```bash
+python data/openwebtext/prepare.py --full
+```
+
+The complete dataset takes up approximately 54GB in the Hugging Face `.cache` directory and contains about 8 million documents (8,013,769). During the tokenization process, the storage usage might increase to around 120GB. The entire process can take anywhere from 30 minutes to 3 hours, depending on your CPU's performance.
+
+Upon successful completion of the script, two data files will be generated:
+
+1. `train.bin`: This file will be approximately 17GB (~9B tokens) in size.
+2. `val.bin`: This file will be around 8.5MB (~4M tokens) in size.
+
+To streamline the training process, we will use the [Hugging Face Accelerate library](https://huggingface.co/docs/accelerate/index). We can generate the training configuration file by running the following accelerate command:
+
+```bash
+accelerate config --config_file ./single_config.yaml
+```
+
+When you run the above command, you will be prompted to answer a series of questions to configure the training process. Here's a step-by-step guide on how to proceed:
+
+First, select `This machine` as we are not using Amazon SageMaker.
+```bash
+In which compute environment are you running?
+Please select a choice using the arrow or number keys, and selecting with enter
+ ➔  This machine
+    AWS (Amazon SageMaker)
+```
+
+Next, since we are initially running the script on a single machine, select `No distributed training`. 
+
+```bash
+Which type of machine are you using?
+Please select a choice using the arrow or number keys, and selecting with enter
+ ➔  No distributed training
+    multi-CPU
+    multi-XPU
+    multi-GPU
+    multi-NPU
+    TPU
+```
+
+You will be prompted to answer a few yes/no questions.  Here are the prompts and answers:
+```bash
+Do you want to run your training on CPU only (even if a GPU / Apple Silicon device is available)? [yes/NO]:yes
+Do you want to use Intel PyTorch Extension (IPEX) to speed up training on CPU? [yes/NO]:yes
+Do you wish to optimize your script with torch dynamo?[yes/NO]:NO
+Do you want to use DeepSpeed? [yes/NO]: NO
+```
+
+At the very end, you will be asked to select mixed precision. Select `bf16` on 4th Generation Intel Xeon CPUs; otherwise, you can select `fp16`.
+
+```bash
+Do you wish to use FP16 or BF16 (mixed precision)?
+Please select a choice using the arrow or number keys, and selecting with enter
+    no   
+    fp16
+ ➔ bf16
+    fp8
+```
+
+This will generate a configuration file and save it as `single_config.yaml` in the current working directory.
+
+We are now ready to start fine-tuning the nanoGPT model. To start the finetuning process, you can run the [`main.py`](main.py) script. But instead of running it directly, you can use the `accelerate launch` command along with the generated configuration file because `accelerate` automatically selects the appropriate number of cores, device, and mixed precision settings based on the configuration file, streamlining the process and optimizing performance. You can begin training at this point with:
+
+```bash
 accelerate launch --config_file ./single_config.yaml main.py
 ```
 
-Your output should look something like:
-```bash                                                                     [42/46]
-(cluster_env) benjamin_consolvo@c3-gpt2small:~/kubeflow-intel-aws/distributed-training/nlp$ accelerate launch --config_file ./single_config.yaml main.py 
-2023-08-03 17:32:54,171 - accelerate.commands.launch - WARNING - The following values were not passed to `accelerate launch` and had defaults used instea
-d:                                                                                                                                                       
-        `--num_cpu_threads_per_process` was set to `4` to improve out-of-box performance when training on CPUs                                           
-To avoid this warning pass in values for each of the problematic parameters or run `accelerate config`.                                                  
-Initializing from OpenAI GPT-2 weights: gpt2                                                                                                             
-loading weights from pretrained gpt: gpt2                                                                                                                
-forcing vocab_size=50257, block_size=1024, bias=True                                                                                                     
-overriding dropout rate to 0.0
-WARNING: using slow attention. Flash Attention requires PyTorch >= 2.0
-WARNING: using slow attention. Flash Attention requires PyTorch >= 2.0                                                                               
-WARNING: using slow attention. Flash Attention requires PyTorch >= 2.0                                                                                   
-WARNING: using slow attention. Flash Attention requires PyTorch >= 2.0                                                                                   
-WARNING: using slow attention. Flash Attention requires PyTorch >= 2.0                                                                                   
-WARNING: using slow attention. Flash Attention requires PyTorch >= 2.0                                                                                   
-WARNING: using slow attention. Flash Attention requires PyTorch >= 2.0                                                                                   
-WARNING: using slow attention. Flash Attention requires PyTorch >= 2.0                                                                                   
-WARNING: using slow attention. Flash Attention requires PyTorch >= 2.0                                                                                   
-number of parameters: 123.65M                                                                                                                            
-num decayed parameter tensors: 50, with 124,318,464 parameters                                                                                           
-num non-decayed parameter tensors: 98, with 121,344 parameters                                                                                           
-[2023-08-03 17:32:58,644][trainer][INFO] - [RANK 0] Total training samples (tokens/block_size) : 8823811
-[2023-08-03 17:32:58,644][trainer][INFO] - [RANK 0] Total validation samples (tokens/block_size) : 4330
-[2023-08-03 17:32:58,644][trainer][INFO] - [RANK 0] One epoch (total_training_samples/batch_size): 275744 iterations
-[2023-08-03 17:32:58,645][trainer][INFO] - [RANK 0] Snapshot not found. Training model from pretrained gpt2 weights
-/home/benjamin_consolvo/anaconda3/envs/cluster_env/lib/python3.10/site-packages/intel_extension_for_pytorch/frontend.py:422: UserWarning: IPEX does not s
-upport fused/fused split update for<class 'torch.optim.adamw.AdamW'>will use non-fused master weight update for bf16 training
-  warnings.warn(
-[W LegacyTypeDispatch.h:74] Warning: AutoNonVariableTypeMode is deprecated and will be removed in 1.10 release. For kernel implementations please use AutoDispatchBelowADInplaceOrView instead, If you are looking for a user facing API to enable running your inference-only workload, please use c10::InferenceMode. Using AutoDispatchBelowADInplaceOrView in user code is under risk of producing silent wrong result in some edge cases. See Note [AutoDispatchBelowAutograd] for more details. (function operator())
-[2023-08-03 17:34:06,645][trainer][INFO] - [RANK 0] eval: train loss 3.0947, val loss 3.0770
-[2023-08-03 17:34:50,662][trainer][INFO] - [RANK 0] iter 0: loss 3.1103, time 111.79s
-[2023-08-03 17:35:32,318][trainer][INFO] - [RANK 0] iter 1: loss 3.1276, time 41.66s
-[2023-08-03 17:36:12,764][trainer][INFO] - [RANK 0] iter 2: loss 4.1207, time 40.45s
-[2023-08-03 17:36:53,758][trainer][INFO] - [RANK 0] iter 3: loss 4.7583, time 40.99s
-[2023-08-03 17:37:34,122][trainer][INFO] - [RANK 0] iter 4: loss 3.8427, time 40.36s
-[2023-08-03 17:38:39,139][trainer][INFO] - [RANK 0] eval: train loss 3.6313, val loss 3.4743
-[2023-08-03 17:38:41,788][trainer][INFO] - [RANK 0] Snapshot saved at 5 iteration
-[2023-08-03 17:39:23,515][trainer][INFO] - [RANK 0] iter 5: loss 3.4503, time 109.39s
-[2023-08-03 17:40:04,350][trainer][INFO] - [RANK 0] iter 6: loss 3.4179, time 40.84s
-[2023-08-03 17:40:45,510][trainer][INFO] - [RANK 0] iter 7: loss 3.3471, time 41.16s
-[2023-08-03 17:41:26,207][trainer][INFO] - [RANK 0] iter 8: loss 3.2343, time 40.70s
-[2023-08-03 17:42:06,967][trainer][INFO] - [RANK 0] iter 9: loss 3.1085, time 40.76s
+This command will initiate the fine-tuning process.
+
+> **Note**: By default, [`main.py`](main.py) uses the [`intel_nano_gpt_train_cfg.yaml`](intel_nano_gpt_train_cfg.yaml) training configuration file: 
+
+```yaml
+data_dir: ./data/openwebtext
+
+block_size: 1024
+  
+optimizer_config:
+  learning_rate: 6e-4
+  weight_decay: 1e-1
+  beta1: 0.9
+  beta2: 0.95
+
+trainer_config:
+  device: cpu
+  mixed_precision: bf16          # fp16 or bf16
+  eval_interval: 5               # how frequently to perform evaluation
+  log_interval: 1                # how frequently to print logs
+  eval_iters: 2                  # how many iterations to perform during evaluation
+  eval_only: False
+  batch_size: 32
+  max_iters: 10                  # total iterations
+  model_path: ckpt.pt 
+  snapshot_path: snapshot.pt
+  gradient_accumulation_steps: 2 
+  grad_clip: 1.0
+  decay_lr: True
+  warmup_iters: 2
+  lr_decay_iters: 10
+  max_lr: 6e-4
+  min_lr: 6e-5
+  ```
+
+> **Note**: Accelerate by default will use the maximum number of physical cores (virtual cores excluded) by default. For experimental reasons, to control the number of threads, you can set `--num_cpu_threads_per_process` to the number of threads you wish to use. For example, if you want to run the script with only 4 threads:
+
+```bash
+accelerate launch --config_file ./single_config.yaml --num_cpu_threads_per_process 4 main.py
+```
+
+The script will train the model for a specified number of `max_iters` iterations and perform evaluations at regular `eval_interval`. If the evaluation score surpasses the previous model's performance, the current model will be saved in the current working directory under the name `ckpt.pt`. It will also save the snapshot of the training progress under the name `snapshot.pt`. You can easily customize these settings by modifying the values in the [`intel_nano_gpt_train_cfg.yaml`](intel_nano_gpt_train_cfg.yaml) file.
+
+After training, the end of the output should look something like:
+```bash                                                          
 [2023-08-03 17:43:12,290][trainer][INFO] - [RANK 0] eval: train loss 3.1855, val loss 3.1305
 [2023-08-03 17:43:25,145][trainer][INFO] - [RANK 0] Snapshot saved at 10 iteration
 [2023-08-03 17:44:07,216][trainer][INFO] - [RANK 0] iter 10: loss 3.1472, time 120.25s
@@ -144,55 +263,157 @@ upport fused/fused split update for<class 'torch.optim.adamw.AdamW'>will use non
 Training completed! Total time taken: 00:11:52
 ```
 
-Distributed Training
+[Back to Table of Contents](#table-of-contents)
+## V. Prepare for Distributed Fine-Tuning
 
-How to create machine images documentation from GCP:
-https://cloud.google.com/compute/docs/machine-images/create-machine-images
+We need to prepare a new `accelerate` configuration file for multi-CPU setup. Before setting up the multi-CPU environment, ensure you have your machine's private IP address handy. To obtain it, run the following command:
 
-Created a machine image on the console
-Show screenshot
-![image](./images/gcp_machine_image_c3.png)
+```bash
+hostname -i
+```
 
+With the private IP address ready, execute the following command to generate the new accelerate configuration file for the multi-CPU setup:
+```bash
+accelerate config --config_file ./multi_config.yaml
+```
+When configuring the multi-CPU setup using `accelerate config`, you will be prompted with several questions. To select the appropriate answers based on your environment, here is what your inputs should look like:
 
-Create instances from machine image:
+After completing the configuration, you will be ready to launch the multi-CPU fine-tuning process. The final output should look something like:
 
-From the Compute Engine window, click "Create Instance" and then you can select "New VM instance from machine image". You can then just press "Create" and it should generate the VM from the image. Do this 1 more time to generate the third instance. Now from the Compute Engine window, you should see your original instance as well as 2 more VMs:
-![image](./images/3_vms_from_machine_image.png)
+```plaintext
+------------------------------------------------------------------------------------------------------------------------------------------
+In which compute environment are you running?
+This machine
+------------------------------------------------------------------------------------------------------------------------------------------
+Which type of machine are you using?
+multi-CPU
+How many different machines will you use (use more than 1 for multi-node training)? [1]: 3
+------------------------------------------------------------------------------------------------------------------------------------------
+What is the rank of this machine?
+0
+What is the IP address of the machine that will host the main process? xxx.xxx.xxx.xxx
+What is the port you will use to communicate with the main process? 29500
+Are all the machines on the same local network? Answer `no` if nodes are on the cloud and/or on different network hosts [YES/no]: no
+What rendezvous backend will you use? ('static', 'c10d', ...): static
+Do you want to use Intel PyTorch Extension (IPEX) to speed up training on CPU? [yes/NO]:yes
+Do you wish to optimize your script with torch dynamo?[yes/NO]:NO
+How many CPU(s) should be used for distributed training? [1]:1
+------------------------------------------------------------------------------------------------------------------------------------------
+Do you wish to use FP16 or BF16 (mixed precision)?
+bf16
+```
+
+A few notes on these selections:
+
+- We are using 3 instances (including the master node). 
+- Concerning the rank, since we are initially running this from the master node, enter `0`. For each machine, you will need to change the rank accordingly.
+- The private IP address is the output of `hostname -i` from earlier.
+- A commonly used port is `29500`, but you can choose any available port. The prompt of `How many CPU(s) should be used for distributed training?` is actually about CPU sockets. Generally, each machine will have only 1 CPU socket. However, in the case of bare metal instances, you may have 2 CPU sockets per instance. Enter the appropriate number of sockets based on your instance configuration.
+
+This will generate a new configuration file named `multi_config.yaml` in your current working directory. We will need to create a new machine image based on our current virtual machine. Before creating a machine image, make sure to delete the `snapshot.pt` file. If this file exists, the `main.py` script will resume training from this snapshot.
+
+The goal will be to set up multiple Linux virtual machines to run distributed training. 
+
+### Passwordless SSH
+
 
 We will set up passwordless SSH so that we can communicate between the master and worker nodes. 
 
 1. run `ssh-keygen` on master instance
 
-2. Follow this and copy over your ~/.ssh/id_rsa.pub file. Add it to Compute Engine - Settings - Metadata - SSH Keys, and hit Save at the bottom left of the screen
+2. If you have not added a public SSH key to the list of authorized_keys on a GCP instance before, you can [follow this very short guide](https://souvikhaldar.medium.com/how-to-add-the-public-ssh-key-to-a-gcp-virtual-machine-ef5703e8e596). The steps are essentially to (1) copy the contents of your ~/.ssh/id_rsa.pub file and (2) in the GCP console, add it to Compute Engine - Settings - Metadata - SSH Keys, and save it.
 
 ![image](./images/ssh_config_copy.png)
 
-https://souvikhaldar.medium.com/how-to-add-the-public-ssh-key-to-a-gcp-virtual-machine-ef5703e8e596
+3. On the master node, make a `~/.ssh/config` file if it doesn't already exist and input:
 
-3. On the master node, make a ~/.ssh/config file if it doesn't already exist and input:
-
-```bash
+```plaintext
 Host 10.*.*.*
    StrictHostKeyChecking no
 
-Host node-1
-    HostName 10.128.15.203
+Host node1
+    HostName 10.0.xx.xx
     User benjamin_consolvo
     
-Host node-2
-    HostName 10.128.15.204
+Host node2
+    HostName 10.0.xx.xx
     User benjamin_consolvo
 ```
 
-Also make a ~/hosts file with:
-```bash
+
+
+The first `Host` line can remain as `10.*.*.*`, but the node1 and node2 `Hostname` will need to change to the `10.0.xx.xx` IP addresses of the nodes that you will spin up in a later step.
+
+The `StrictHostKeyChecking no` line disables strict host key checking, allowing the master node to SSH into the worker nodes without prompting for verification.
+
+Next, on the master node, create a host file (`~/hosts`) that includes the names of all the nodes you want to include in the training process, as defined in the SSH configuration above. Use `localhost` for the master node itself as you will launch the training script from the master node. The `hosts` file will look like this:
+
+```plaintext
 localhost
 node1
+node2
 ```
 
-To run the multi config:
-mpirun -f ~/hosts -n 3 -ppn 1 -genv LD_PRELOAD="/usr/lib/x86_64-linux-gnu/libtcmalloc.so" accelerate launch --config_file ./multi_config.yaml --num_cpu_threads_per_process 4 main.py 
+This setup will allow you to seamlessly connect to any node in the cluster for distributed fine-tuning.
 
+### Virtual Machine Images
+
+Before spinning up the virtual machines, we want to make a copy of our current master node as a "machine image".
+
+GCP has a helpful short guide here on how to create machine images: 
+https://cloud.google.com/compute/docs/machine-images/create-machine-images
+
+Here is a screenshot of the machine image selection screen:
+![image](./images/gcp_machine_image_c3.png)
+
+Once you have created a machine image, you can then create instances from the machine image:
+
+From the Compute Engine window, click "Create Instance" and then you can select "New VM instance from machine image". You can name it, and just press "Create" and it should generate the VM from the image. Do this 1 more time to generate the third instance. Now from the Compute Engine window, you should see your original instance as well as 2 more VMs:
+![image](./images/3_vms_from_machine_image.png)
+
+Now that you have spun up your virtual machines, remember at this point to update the master node's `~/.ssh/config` file with your latest IP addresses. 
+
+You now will need to SSH from your master node to the worker nodes by executing `ssh node1` or `ssh node2` to establish those SSH connections. When prompted about the identity upon first SSHing into the machines, answer `yes`.
+
+Before beginning the fine-tuning process, it is important to update the `machine_rank` value on each machine. Follow these steps for each worker machine:
+
+1. SSH into the worker machine.
+2. Locate and open the `multi_config.yaml` file.
+3. Update the value of the `machine_rank` variable in the file. Assign the rank to the worker nodes starting from 1.
+   - For the master node, set the rank to 0.
+   - For the first worker node, set the rank to 1.
+   - For the second worker node, set the rank to 2.
+   - Continue this pattern for additional worker nodes.
+
+By updating the `machine_rank`, you ensure that each machine is correctly identified within the distributed fine-tuning setup.
+
+To fine-tune PyTorch models in a distributed setting on Intel hardware, we utilize the [Intel® Message Passing Interface (Intel® MPI)](https://www.intel.com/content/www/us/en/developer/tools/oneapi/mpi-library.html) implementation. This implementation provides flexible, efficient, and scalable cluster messaging on Intel architecture. The [Intel® oneAPI HPC Toolkit](https://www.intel.com/content/www/us/en/developer/tools/oneapi/hpc-toolkit.html) includes all the necessary components, including `oneccl_bindings_for_pytorch`, which is installed alongside the MPI toolset.
+
+Before launching the fine-tuning process, ensure you have set the environment variables for `oneccl_bindings_for_pytorch` in each node in the cluster by running the following command:
+
+```bash
+oneccl_bindings_for_pytorch_path=$(python -c "from oneccl_bindings_for_pytorch import cwd; print(cwd)")
+source $oneccl_bindings_for_pytorch_path/env/setvars.sh
+```
+
+This command sets up the environment variables required for utilizing `oneccl_bindings_for_pytorch` and enables distributed training using Intel MPI. 
+
+> **Note**: In a distributed setting, `mpirun` can be used to run any program, not just for distributed training. It allows you to execute parallel applications across multiple nodes or machines, leveraging the capabilities of MPI (Message Passing Interface).
+
+[Back to Table of Contents](#table-of-contents)
+## VI. Distributed Training
+On the master node, you should now be able to run distributed training with 
+```bash
+mpirun -f ~/hosts -n 3 -ppn 1 -genv LD_PRELOAD="/usr/lib/x86_64-linux-gnu/libtcmalloc.so" accelerate launch --config_file ./multi_config.yaml --num_cpu_threads_per_process 4 main.py 
+```
+
+Some notes on the arguments for `mpirun` to consider:
+- `-n`: This parameter represents the number of CPUs or nodes. In our case, we specified `-n 3` to run on 3 nodes. Typically, it is set to the number of nodes you are using. However, in the case of bare metal instances with 2 CPU sockets per board, you would use `2n` to account for the 2 sockets.
+- `-ppn`: The "process per node" parameter determines how many training jobs you want to start on each node. We only want 1 instance of each training to be run on each node, so we set this to `-ppn 1`. 
+- `-genv`: This argument allows you to set an environment variable that will be applied to all processes. We used it to set the `LD_PRELOAD` environment variable to use the `libtcmaclloc` performance library.
+- `num_cpu_threads_per_process`: The `num_cpu_threads_per_process` argument specifies the number of CPU threads that PyTorch will use per process. We set this to use 4 in our case. When running deep learning tasks, it is best practice to use only the physical cores of your processor, which in our case is 4.
+
+Here is what the final output for distributed training would look like. 
 
 Output:
 ```bash
@@ -200,18 +421,9 @@ Initializing from OpenAI GPT-2 weights: gpt2
 loading weights from pretrained gpt: gpt2
 forcing vocab_size=50257, block_size=1024, bias=True
 overriding dropout rate to 0.0
-WARNING: using slow attention. Flash Attention requires PyTorch >= 2.0
-WARNING: using slow attention. Flash Attention requires PyTorch >= 2.0
-WARNING: using slow attention. Flash Attention requires PyTorch >= 2.0
-WARNING: using slow attention. Flash Attention requires PyTorch >= 2.0
-WARNING: using slow attention. Flash Attention requires PyTorch >= 2.0
-WARNING: using slow attention. Flash Attention requires PyTorch >= 2.0
-WARNING: using slow attention. Flash Attention requires PyTorch >= 2.0
-WARNING: using slow attention. Flash Attention requires PyTorch >= 2.0
-WARNING: using slow attention. Flash Attention requires PyTorch >= 2.0
-WARNING: using slow attention. Flash Attention requires PyTorch >= 2.0
-WARNING: using slow attention. Flash Attention requires PyTorch >= 2.0
-WARNING: using slow attention. Flash Attention requires PyTorch >= 2.0
+
+...
+
 number of parameters: 123.65M
 num decayed parameter tensors: 50, with 124,318,464 parameters
 num non-decayed parameter tensors: 98, with 121,344 parameters
@@ -220,78 +432,9 @@ Initializing from OpenAI GPT-2 weights: gpt2
 loading weights from pretrained gpt: gpt2
 forcing vocab_size=50257, block_size=1024, bias=True
 overriding dropout rate to 0.0
-WARNING: using slow attention. Flash Attention requires PyTorch >= 2.0
-WARNING: using slow attention. Flash Attention requires PyTorch >= 2.0
-WARNING: using slow attention. Flash Attention requires PyTorch >= 2.0
-WARNING: using slow attention. Flash Attention requires PyTorch >= 2.0
-WARNING: using slow attention. Flash Attention requires PyTorch >= 2.0
-WARNING: using slow attention. Flash Attention requires PyTorch >= 2.0
-WARNING: using slow attention. Flash Attention requires PyTorch >= 2.0
-WARNING: using slow attention. Flash Attention requires PyTorch >= 2.0
-WARNING: using slow attention. Flash Attention requires PyTorch >= 2.0
-WARNING: using slow attention. Flash Attention requires PyTorch >= 2.0
-WARNING: using slow attention. Flash Attention requires PyTorch >= 2.0
-WARNING: using slow attention. Flash Attention requires PyTorch >= 2.0
-number of parameters: 123.65M
-num decayed parameter tensors: 50, with 124,318,464 parameters
-num non-decayed parameter tensors: 98, with 121,344 parameters
-[2023-08-03 21:07:45,158][torch.distributed.distributed_c10d][INFO] - Added key: store_based_barrier_key:1 to store for rank: 2
-Initializing from OpenAI GPT-2 weights: gpt2
-loading weights from pretrained gpt: gpt2
-forcing vocab_size=50257, block_size=1024, bias=True
-overriding dropout rate to 0.0
-WARNING: using slow attention. Flash Attention requires PyTorch >= 2.0
-WARNING: using slow attention. Flash Attention requires PyTorch >= 2.0
-WARNING: using slow attention. Flash Attention requires PyTorch >= 2.0
-WARNING: using slow attention. Flash Attention requires PyTorch >= 2.0
-WARNING: using slow attention. Flash Attention requires PyTorch >= 2.0
-WARNING: using slow attention. Flash Attention requires PyTorch >= 2.0
-WARNING: using slow attention. Flash Attention requires PyTorch >= 2.0
-WARNING: using slow attention. Flash Attention requires PyTorch >= 2.0
-WARNING: using slow attention. Flash Attention requires PyTorch >= 2.0
-WARNING: using slow attention. Flash Attention requires PyTorch >= 2.0
-WARNING: using slow attention. Flash Attention requires PyTorch >= 2.0
-WARNING: using slow attention. Flash Attention requires PyTorch >= 2.0
-number of parameters: 123.65M
-num decayed parameter tensors: 50, with 124,318,464 parameters
-num non-decayed parameter tensors: 98, with 121,344 parameters
-[2023-08-03 21:07:45,158][torch.distributed.distributed_c10d][INFO] - Added key: store_based_barrier_key:1 to store for rank: 1
-[2023-08-03 21:07:45,159][torch.distributed.distributed_c10d][INFO] - Rank 2: Completed store-based barrier for key:store_based_barrier_key:1 with 3 nodes.
-[2023-08-03 21:07:45,159][torch.distributed.distributed_c10d][INFO] - Rank 1: Completed store-based barrier for key:store_based_barrier_key:1 with 3 nodes.
-[2023-08-03 21:07:45,159][torch.distributed.distributed_c10d][INFO] - Rank 0: Completed store-based barrier for key:store_based_barrier_key:1 with 3 nodes.
-[2023-08-03 21:07:45,162][trainer][INFO] - [RANK 0] Total training samples (tokens/block_size) : 8823811
-[2023-08-03 21:07:45,162][trainer][INFO] - [RANK 0] Total validation samples (tokens/block_size) : 4330
-[2023-08-03 21:07:45,162][trainer][INFO] - [RANK 0] One epoch (total_training_samples/batch_size): 275744 iterations
-[2023-08-03 21:07:45,163][trainer][INFO] - [RANK 2] Total training samples (tokens/block_size) : 8823811
-[2023-08-03 21:07:45,163][trainer][INFO] - [RANK 2] Total validation samples (tokens/block_size) : 4330
-[2023-08-03 21:07:45,163][trainer][INFO] - [RANK 2] One epoch (total_training_samples/batch_size): 275744 iterations
-[2023-08-03 21:07:45,164][trainer][INFO] - [RANK 0] Snapshot not found. Training model from pretrained gpt2 weights
-[2023-08-03 21:07:45,164][trainer][INFO] - [RANK 1] Total training samples (tokens/block_size) : 8823811
-[2023-08-03 21:07:45,164][trainer][INFO] - [RANK 1] Total validation samples (tokens/block_size) : 4330
-[2023-08-03 21:07:45,164][trainer][INFO] - [RANK 1] One epoch (total_training_samples/batch_size): 275744 iterations
-/home/benjamin_consolvo/anaconda3/envs/cluster_env/lib/python3.10/site-packages/intel_extension_for_pytorch/frontend.py:422: UserWarning: IPEX does not support fused/fused split update for<class 'torch.optim.adamw.AdamW'>will use non-fused master weight update for bf16 training
-  warnings.warn(
-[2023-08-03 21:07:45,166][trainer][INFO] - [RANK 2] Snapshot not found. Training model from pretrained gpt2 weights
-[2023-08-03 21:07:45,166][trainer][INFO] - [RANK 1] Snapshot not found. Training model from pretrained gpt2 weights
-/home/benjamin_consolvo/anaconda3/envs/cluster_env/lib/python3.10/site-packages/intel_extension_for_pytorch/frontend.py:422: UserWarning: IPEX does not support fused/fused split update for<class 'torch.optim.adamw.AdamW'>will use non-fused master weight update for bf16 training
-  warnings.warn(
-/home/benjamin_consolvo/anaconda3/envs/cluster_env/lib/python3.10/site-packages/intel_extension_for_pytorch/frontend.py:422: UserWarning: IPEX does not support fused/fused split update for<class 'torch.optim.adamw.AdamW'>will use non-fused master weight update for bf16 training
-  warnings.warn(
-[W LegacyTypeDispatch.h:74] Warning: AutoNonVariableTypeMode is deprecated and will be removed in 1.10 release. For kernel implementations please use AutoDispatchBelowADInplaceOrView instead, If you are looking for a user facing API to enable running your inference-only workload, please use c10::InferenceMode. Using AutoDispatchBelowADInplaceOrView in user code is under risk of producing silent wrong result in some edge cases. See Note [AutoDispatchBelowAutograd] for more details. (function operator())
-[W LegacyTypeDispatch.h:74] Warning: AutoNonVariableTypeMode is deprecated and will be removed in 1.10 release. For kernel implementations please use AutoDispatchBelowADInplaceOrView instead, If you are looking for a user facing API to enable running your inference-only workload, please use c10::InferenceMode. Using AutoDispatchBelowADInplaceOrView in user code is under risk of producing silent wrong result in some edge cases. See Note [AutoDispatchBelowAutograd] for more details. (function operator())
-[W LegacyTypeDispatch.h:74] Warning: AutoNonVariableTypeMode is deprecated and will be removed in 1.10 release. For kernel implementations please use AutoDispatchBelowADInplaceOrView instead, If you are looking for a user facing API to enable running your inference-only workload, please use c10::InferenceMode. Using AutoDispatchBelowADInplaceOrView in user code is under risk of producing silent wrong result in some edge cases. See Note [AutoDispatchBelowAutograd] for more details. (function operator())
-[2023-08-03 21:08:24,865][trainer][INFO] - [RANK 0] eval: train loss 3.1542, val loss 3.0719
-[2023-08-03 21:08:51,264][trainer][INFO] - [RANK 0] iter 0: loss 3.1084, time 65.91s
-[2023-08-03 21:09:16,999][trainer][INFO] - [RANK 0] iter 1: loss 3.1076, time 25.73s
-[2023-08-03 21:09:41,690][trainer][INFO] - [RANK 0] iter 2: loss 4.0507, time 24.69s
-[2023-08-03 21:10:06,411][trainer][INFO] - [RANK 0] iter 3: loss 4.5933, time 24.72s
-[2023-08-03 21:10:31,146][trainer][INFO] - [RANK 0] iter 4: loss 3.7046, time 24.73s
-[2023-08-03 21:11:06,593][trainer][INFO] - [RANK 0] eval: train loss 3.5070, val loss 3.4650
-[2023-08-03 21:11:14,422][trainer][INFO] - [RANK 0] Snapshot saved at 5 iteration
-[2023-08-03 21:11:39,256][trainer][INFO] - [RANK 0] iter 5: loss 3.4653, time 68.11s
-[2023-08-03 21:12:03,882][trainer][INFO] - [RANK 0] iter 6: loss 3.3724, time 24.63s
-[2023-08-03 21:12:28,548][trainer][INFO] - [RANK 0] iter 7: loss 3.3354, time 24.67s
-[2023-08-03 21:12:34,927][trainer][INFO] - [RANK 2] Total Samples used for training: 352
+
+...
+
 Training completed! Total time taken: 00:04:55
 [2023-08-03 21:12:39,443][trainer][INFO] - [RANK 1] Total Samples used for training: 352
 Training completed! Total time taken: 00:05:00
@@ -305,18 +448,65 @@ Training completed! Total time taken: 00:05:00
 Training completed! Total time taken: 00:07:18
 ```
 
-To look at all of the nodes while they are training, we can SSH into each node and pull up the 3 windows on one screen:
+> **Note**: If you get an error like `[W socket.cpp:601] [c10d] The client socket has failed to connect to [253.110.170.34.bc.googleusercontent.com]:29500 (errno: 110 - Connection timed out)`, it indicates you may have specified the wrong IP in your `multi_config.yaml`.
+
+To look at all of the nodes while they are training, we can SSH into each node and pull up the 3 windows, and use `htop` to check that we have processes running on all 3 nodes.
 
 ![image](./images/3_nodes_with_htop.png)
 
-
-CLEANUP:
-
-- Delete Machine Images
-- Terminate Compute Instances
+[Back to Table of Contents](#table-of-contents)
+## VII. Model Inference
 
 
-[W socket.cpp:601] [c10d] The client socket has failed to connect to [253.110.170.34.bc.googleusercontent.com]:29500 (errno: 110 - Connection timed out)
+Now that we have fine-tuned the model, let's try to generate some text using the command below. 
 
--> indicates you may have specified the wrong IP in your multi_config.yaml
+```bash
+python sample.py --ckpt_path=ckpt.pt
+```
 
+The script is designed to generate sample text containing 100 tokens. By default, the input prompt for generating these samples is the `It is interesting` prompt. However, you also have the option to specify your own prompt by using the `--prompt` argument as follows:
+
+```bash
+python sample.py --ckpt_path=ckpt.pt --prompt="This is new prompt"
+```
+
+Below is one sample generated text from the `It is interesting` input:
+
+```
+Input Prompt: It is interesting 
+--------------- Generated Text ---------------
+It is interesting  to see how many people like this, because I have been listening to and writing about this for a long time. 
+Maybe I am just a fan of the idea of a blog, but I am talking about this particular kind of fan whose blog is about the other stuff I have like the work of Robert Kirkman and I am sure it is a fan of the work of Robert Kirkman. I thought that was really interesting and I am sure it can be something that I could relate to.
+
+-------------------------------------------
+```
+
+This example does illustrate that the language model can generate text, but it is not useful in its current form until fine-tuned on downstream tasks. While there is repetition in the tokens here, this module's primary focus was on the successful distributed training process and leveraging the capabilities of Intel hardware effectively.
+
+[Back to Table of Contents](#table-of-contents)
+
+## VIII. Clean up Resources
+
+To clean up your resources after your training is complete, in the GCP console, you can delete both the machine image you created as well as terminate the compute instances.
+
+[Back to Table of Contents](#table-of-contents)
+## IX. Summary
+
+By adopting distributed training techniques, we have achieved greater data processing efficiency. We get a lower loss value indicating better model generalization. This performance boost and generalization enhancement is a testament to the advantages of leveraging distributed architectures for fine-tuning LLMs. 
+
+Distributed training is of paramount importance in modern machine learning and deep learning scenarios. Its significance lies in the following aspects:
+- Faster training: As demonstrated in the output, distributed systems reduce the training time for large datasets. It allows parallel processing across multiple nodes, which accelerates the training process and enables efficient utilization of computing resources.
+- Scalability: With distributed training, the model training process can easily scale to handle massive datasets, complex architectures, and larger batch sizes. This scalability is crucial for handling real-world, high-dimensional data.
+- Model generalization: Distributed training enables access to diverse data samples from different nodes, leading to improved model generalization. This, in turn, enhances the model's ability to perform well on unseen data.
+
+Overall, distributed training is an indispensable technique that empowers data scientists, researchers, and organizations to efficiently tackle complex machine learning tasks and achieve more performant results.
+
+[Back to Table of Contents](#table-of-contents)
+
+## X. Next Steps
+
+- Learn more about all of the [Intel® Cloud Optimization Modules](https://www.intel.com/content/www/us/en/developer/topic-technology/cloud-optimization.html).
+- Register for [Office Hours](https://software.seek.intel.com/SupportFromIntelExperts-Reg) for implementation support from Intel engineers. 
+- Come chat with us on the [Intel® DevHub Discord server](https://discord.gg/rv2Gp55UJQ) to keep interacting with fellow developers.
+
+[Back to Table of Contents](#table-of-contents)
