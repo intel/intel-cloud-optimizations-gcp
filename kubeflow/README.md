@@ -3,7 +3,7 @@
   <img src="./images/logo-classicblue-800px.png?raw=true" alt="Intel Logo" width="250"/>
 </p>
 
-# Intel® Cloud Optimization Modules for GCP: XGBoost Kubeflow Pipeline
+# Intel® Optimized Cloud Modules for GCP: XGBoost Kubeflow Pipeline
 
 This reference solution provides an optimized training and inference architecture of an AI model using XGBoost to predict the probability of a loan default from client characteristics and the type of loan obligation on GCP. This module enables the use of Intel® optimizations for XGBoost and Intel® daal4py in a Kubeflow Pipeline. This guide will walk you through the set up of Kubeflow on GCP, followed by running an Kubeflow pipeline. Note that you can bring and build your own Kubeflow pipelines and that this is just an example to get you started! During the setup of the Kubeflow cluster, we recommend deploying with the latest [C3 CPU available on GCP](https://cloud.google.com/compute/docs/general-purpose-machines#c3_series), which is the 4th Generation Intel Xeon Scalable Processor (code-named Sapphire Rapids) with built-in AI acceleration [Intel AMX](https://www.intel.com/content/www/us/en/products/docs/accelerator-engines/advanced-matrix-extensions/overview.html).
 
