@@ -3,9 +3,9 @@
   <img src="./images/logo-classicblue-800px.png?raw=true" alt="Intel Logo" width="250"/>
 </p>
 
-# Intel® Cloud Optimization Modules for GCP: nanoGPT Distributed Training
+# Intel® Optimized Cloud Modules for GCP: nanoGPT Distributed Training
 
-The Intel Cloud Optimization Modules for Google Cloud Platform (GCP) are a set of open source cloud-native reference architectures to facilitate building and deploying optimized, efficient, and scalable AI solutions on GCP. Here is the reference architecture for this module:
+The Intel Optimized Cloud Modules for Google Cloud Platform (GCP) are a set of open source cloud-native reference architectures to facilitate building and deploying optimized, efficient, and scalable AI solutions on GCP. Here is the reference architecture for this module:
 <p align="center">
   <img src="./images/nanoGPT_architecture_diagram_gcp.png" alt="Intel Logo" width="600"/>
 </p>
@@ -85,37 +85,24 @@ We will first update the package manager and install [tcmalloc](https://github.c
 sudo apt update
 sudo apt install libgoogle-perftools-dev -y
 ```
-Now let's set up a conda environment for fine-tuning GPT. First, download and install conda based on your operating system. You can find the most updated download instructions [here](https://www.anaconda.com/download#downloads). The commands should look like:
+Now let's set up a conda environment for fine-tuning GPT. First, download and install conda based on your operating system. For miniconda, You can find the most updated download instructions [here](https://docs.anaconda.com/free/miniconda/). The commands for Linux should look like:
 
 ```bash
-wget https://repo.anaconda.com/miniconda/Miniconda3-py310_23.10.0-1-Linux-x86_64.sh
-bash ./Miniconda3-py310_23.10.0-1-Linux-x86_64.sh
-```
-Make sure to answer `yes` to the question 
-```bash
-Do you wish to update your shell profile to automatically initialize conda?
-This will activate conda on startup and change the command prompt when activated.
-If you'd prefer that conda's base environment not be activated on startup,
-   run the following command when conda is activated:
-
-conda config --set auto_activate_base false
-
-You can undo this by running `conda init --reverse $SHELL`? [yes|no]
-[no] >>> yes
+mkdir -p ~/miniconda3
+wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/miniconda3/miniconda.sh
+bash ~/miniconda3/miniconda.sh -b -u -p ~/miniconda3
+rm -rf ~/miniconda3/miniconda.sh
 ```
 
-
-To begin using conda, you have two options: restart the shell or execute the following command:
+After installing, initialize the bash environment with:
 ```bash
-source ~/.bashrc
+~/miniconda3/bin/conda init bash
 ```
 
-Running this command will source the `bashrc` file, which has the same effect as restarting the shell. This enables you to access and use conda for managing your Python environments and packages seamlessly.
-
-Once conda is installed, create a virtual environment and activate it:
+Once conda is installed, you can create a virtual environment and activate it:
 
 ```bash
-conda create -n cluster_env python=3.10
+conda create -n cluster_env python=3.11
 conda activate cluster_env
 ```
 Now we can install the Python packages in our new conda environment.
@@ -126,22 +113,16 @@ cd intel-cloud-optimizations-gcp/distributed-training/nlp
 pip install -r requirements.txt
 ```
 
-In order to run distributed training, we will use the [Intel® oneAPI Collective Communications Library (oneCCL)](https://www.intel.com/content/www/us/en/developer/tools/oneapi/oneccl.html). Download the appropriate wheel file and install it using the following commands:
+In order to run distributed training, we will use the [Intel® oneAPI Collective Communications Library (oneCCL)](https://github.com/intel/torch-ccl). Install oneCCL with the following command:
 
 ```bash
-wget https://intel-extension-for-pytorch.s3.amazonaws.com/torch_ccl/cpu/oneccl_bind_pt-1.13.0%2Bcpu-cp310-cp310-linux_x86_64.whl
-pip install oneccl_bind_pt-1.13.0+cpu-cp310-cp310-linux_x86_64.whl
-```
-
-And you can delete the wheel file after installation:
-```bash
-rm oneccl_bind_pt-1.13.0+cpu-cp310-cp310-linux_x86_64.whl
+python -m pip install oneccl_bind_pt==2.2.0 -f https://developer.intel.com/ipex-whl-stable-cpu
 ```
 
 [Back to Table of Contents](#table-of-contents)
 ## IV. Download dataset and Fine-tune nanoGPT on a Single CPU
 
-Next, we can download the full OpenWebText dataset. This is all accomplished with one script.
+Make sure you are in the `~/intel-cloud-optimizations-gcp/distributed-training/nlp` folder first. Next, we can download and prepare the full OpenWebText dataset.  This is all accomplished with one script.
 
 ```bash
 python data/openwebtext/prepare.py --full
@@ -173,7 +154,7 @@ Please select a choice using the arrow or number keys, and selecting with enter
 Next, since we are initially running the script on a single machine, select `No distributed training`. 
 
 ```bash
-Which type of machine are you using?
+Which type of machine are you using?                                                                                
 Please select a choice using the arrow or number keys, and selecting with enter
  ➔  No distributed training
     multi-CPU
@@ -185,10 +166,10 @@ Please select a choice using the arrow or number keys, and selecting with enter
 
 You will be prompted to answer a few yes/no questions.  Here are the prompts and answers:
 ```bash
-Do you want to run your training on CPU only (even if a GPU / Apple Silicon device is available)? [yes/NO]:yes
-Do you want to use Intel PyTorch Extension (IPEX) to speed up training on CPU? [yes/NO]:yes
-Do you wish to optimize your script with torch dynamo?[yes/NO]:NO
-Do you want to use DeepSpeed? [yes/NO]: NO
+Do you want to run your training on CPU only (even if a GPU / Apple Silicon / Ascend NPU device is available)? [yes/NO]:yes                                                                                                             
+Do you want to use Intel PyTorch Extension (IPEX) to speed up training on CPU? [yes/NO]:yes                         
+Do you wish to optimize your script with torch dynamo?[yes/NO]:NO                                                   
+Do you want to use DeepSpeed? [yes/NO]: NO 
 ```
 
 At the very end, you will be asked to select mixed precision. Select `bf16` on 4th Generation Intel Xeon CPUs; otherwise, you can select `fp16`.
@@ -281,26 +262,30 @@ When configuring the multi-CPU setup using `accelerate config`, you will be prom
 After completing the configuration, you will be ready to launch the multi-CPU fine-tuning process. The final output should look something like:
 
 ```plaintext
-------------------------------------------------------------------------------------------------------------------------------------------
+--------------------------------------------------------------------------------------------------------------------
 In which compute environment are you running?
-This machine
-------------------------------------------------------------------------------------------------------------------------------------------
-Which type of machine are you using?
-multi-CPU
-How many different machines will you use (use more than 1 for multi-node training)? [1]: 3
-------------------------------------------------------------------------------------------------------------------------------------------
-What is the rank of this machine?
-0
-What is the IP address of the machine that will host the main process? xxx.xxx.xxx.xxx
-What is the port you will use to communicate with the main process? 29500
+This machine                                                                                                        
+--------------------------------------------------------------------------------------------------------------------
+Which type of machine are you using?                                                                                
+multi-CPU                                                                                                           
+How many different machines will you use (use more than 1 for multi-node training)? [1]: 3                          
+--------------------------------------------------------------------------------------------------------------------
+What is the rank of this machine?                                                                                   
+0                                                                                                                   
+What is the IP address of the machine that will host the main process? 10.128.0.4                                   
+What is the port you will use to communicate with the main process? 29500                                           
 Are all the machines on the same local network? Answer `no` if nodes are on the cloud and/or on different network hosts [YES/no]: no
 What rendezvous backend will you use? ('static', 'c10d', ...): static
+Should distributed operations be checked while running for errors? This can avoid timeout issues but will be slower. [yes/NO]: NO
 Do you want to use Intel PyTorch Extension (IPEX) to speed up training on CPU? [yes/NO]:yes
+Do you want accelerate to launch mpirun? [yes/NO]: NO
+Enter the number of oneCCL worker threads [1]: 4
 Do you wish to optimize your script with torch dynamo?[yes/NO]:NO
-How many CPU(s) should be used for distributed training? [1]:1
-------------------------------------------------------------------------------------------------------------------------------------------
+How many processes should be used for distributed training? [1]:1
+--------------------------------------------------------------------------------------------------------------------
 Do you wish to use FP16 or BF16 (mixed precision)?
-bf16
+bf16                                                                                                                
+accelerate configuration saved at ./multi_config.yaml
 ```
 
 A few notes on these selections:
@@ -315,7 +300,6 @@ This will generate a new configuration file named `multi_config.yaml` in your cu
 The goal will be to set up multiple Linux virtual machines to run distributed training. 
 
 ### Passwordless SSH
-
 
 We will set up passwordless SSH so that we can communicate between the master and worker nodes. 
 
@@ -387,7 +371,7 @@ Before beginning the fine-tuning process, it is important to update the `machine
 
 By updating the `machine_rank`, you ensure that each machine is correctly identified within the distributed fine-tuning setup.
 
-To fine-tune PyTorch models in a distributed setting on Intel hardware, we utilize the [Intel® Message Passing Interface (Intel® MPI)](https://www.intel.com/content/www/us/en/developer/tools/oneapi/mpi-library.html) implementation. This implementation provides flexible, efficient, and scalable cluster messaging on Intel architecture. The [Intel® oneAPI HPC Toolkit](https://www.intel.com/content/www/us/en/developer/tools/oneapi/hpc-toolkit.html) includes all the necessary components, including `oneccl_bindings_for_pytorch`, which is installed alongside the MPI toolset.
+To fine-tune PyTorch models in a distributed setting on Intel hardware, we utilize the [Intel® Message Passing Interface (Intel® MPI)](https://www.intel.com/content/www/us/en/developer/tools/oneapi/mpi-library.html) implementation. This implementation provides flexible, efficient, and scalable cluster messaging on Intel architecture.
 
 Before launching the fine-tuning process, ensure you have set the environment variables for `oneccl_bindings_for_pytorch` in each node in the cluster by running the following command:
 
@@ -505,8 +489,9 @@ Overall, distributed training is an indispensable technique that empowers data s
 
 ## X. Next Steps
 
-- Learn more about all of the [Intel® Cloud Optimization Modules](https://www.intel.com/content/www/us/en/developer/topic-technology/cloud-optimization.html).
+- Learn more about all of the [Intel® Optimized Cloud Modules](https://www.intel.com/content/www/us/en/developer/topic-technology/cloud-optimization.html).
 - Register for [Office Hours](https://software.seek.intel.com/SupportFromIntelExperts-Reg) for implementation support from Intel engineers. 
 - Come chat with us on the [Intel® DevHub Discord server](https://discord.gg/rv2Gp55UJQ) to keep interacting with fellow developers.
+- Upload your fine-tuned LLM to Hugging Face Model Hub and then submit to the [Powered-by-Intel LLM Leaderboard](https://huggingface.co/spaces/Intel/powered_by_intel_llm_leaderboard)
 
 [Back to Table of Contents](#table-of-contents)

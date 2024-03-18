@@ -106,6 +106,8 @@ class Trainer:
         log_info(
             f"[RANK {self.accelerator.process_index}] Resuming training from snapshot: Completed {self.iter_num} iterations | Best Val loss {self.best_val_loss}",
         )
+        log_info(f'Closing snapshot file...')
+        snapshot.close() #adding due to checkmarx scan requirement. It should already be closed with the with statement above, but just doubling down to satisfy checkmarx.
 
     def _save_snapshot(self, iter_num):
         # capture snapshot
